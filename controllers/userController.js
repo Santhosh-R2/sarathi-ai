@@ -120,37 +120,20 @@ const getAllUsers = async (req, res) => {
 };
 const getSystemStats = async (req, res) => {
     try {
-        // 1. Get Total Counts
         const totalUsers = await User.countDocuments();
         const totalTutorials = await Tutorial.countDocuments();
+        const totalChats = await Chat.countDocuments(); // REAL count of AI queries
 
-        // 2. Get Language Distribution (Real Data)
         const languageStats = await User.aggregate([
             { $group: { _id: "$language", value: { $sum: 1 } } },
             { $project: { name: "$_id", value: 1, _id: 0 } }
         ]);
 
-        // 3. Get Literacy Level Distribution
-        const levelStats = await User.aggregate([
-            { $group: { _id: "$literacyLevel", count: { $sum: 1 } } }
-        ]);
-
-        // 4. Get Registration Growth (Last 6 Months)
         const growthStats = await User.aggregate([
-            {
-                $group: {
-                    _id: { 
-                        month: { $month: "$createdAt" }, 
-                        year: { $year: "$createdAt" } 
-                    },
-                    users: { $sum: 1 }
-                }
-            },
-            { $sort: { "_id.year": 1, "_id.month": 1 } },
-            { $limit: 6 }
+            { $group: { _id: { month: { $month: "$createdAt" } }, users: { $sum: 1 } } },
+            { $sort: { "_id.month": 1 } }
         ]);
 
-        // Format Growth Data for Recharts (Month numbers to names)
         const monthNames = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         const formattedGrowth = growthStats.map(item => ({
             month: monthNames[item._id.month],
@@ -161,12 +144,12 @@ const getSystemStats = async (req, res) => {
             success: true,
             totalUsers,
             totalTutorials,
+            totalChats,
             languageData: languageStats,
-            levelData: levelStats,
             growthData: formattedGrowth
         });
     } catch (error) {
-        res.status(500).json({ message: "Failed to fetch statistics", error: error.message });
+        res.status(500).json({ message: error.message });
     }
 };
 module.exports = { registerUser, getUserProfile, updateProfile ,getAllUsers, getSystemStats };
