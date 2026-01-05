@@ -1,5 +1,6 @@
 const User = require("../models/User");
 const Tutorial = require("../models/Tutorial");
+const Chat = require("../models/Chat");
 const registerUser = async (req, res) => {
   try {
     const { 
