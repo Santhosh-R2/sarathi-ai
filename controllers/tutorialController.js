@@ -22,9 +22,11 @@ const addTutorial = async (req, res) => {
 
 const getTutorials = async (req, res) => {
     try {
-        const tutorials = await Tutorial.find({}, 'title category'); // Added category for better suggestions
+        const tutorials = await Tutorial.find({}, 'title category description'); 
         res.json(tutorials);
-    } catch (e) { res.status(500).json({ message: e.message }); }
+    } catch (e) { 
+        res.status(500).json({ message: e.message }); 
+    }
 };
 
 const getTutorialById = async (req, res) => {
@@ -37,8 +39,6 @@ const getTutorialById = async (req, res) => {
   }
 };
 
-// @desc    Update a tutorial
-// @route   PUT /api/tutorials/:id
 const updateTutorial = async (req, res) => {
   try {
     const tutorial = await Tutorial.findByIdAndUpdate(
