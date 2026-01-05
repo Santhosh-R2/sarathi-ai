@@ -1,0 +1,11 @@
+{
+  "dependencies": {
+    "axios": "^1.13.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "form-data": "^4.0.5",
+    "mongoose": "^9.1.1",
+    "translate-google-api": "^1.0.4"
+  }
+}
