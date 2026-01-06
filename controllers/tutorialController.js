@@ -22,7 +22,7 @@ const addTutorial = async (req, res) => {
 
 const getTutorials = async (req, res) => {
     try {
-        const tutorials = await Tutorial.find({}, 'title category description'); 
+        const tutorials = await Tutorial.find({}, 'title category description steps'); 
         res.json(tutorials);
     } catch (e) { 
         res.status(500).json({ message: e.message }); 
