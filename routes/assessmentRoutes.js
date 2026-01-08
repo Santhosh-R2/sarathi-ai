@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const assessCtrl = require('../controllers/assessmentController');
-const { Quiz } = require('../models/AssessmentModels');
+const { Quiz , QuizResult} = require('../models/AssessmentModels');
 
 router.post('/admin/add-quiz', async (req, res) => {
     try {
