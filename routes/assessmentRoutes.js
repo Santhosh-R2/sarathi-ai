@@ -25,5 +25,14 @@ router.get('/quiz/:lessonId', async (req, res) => {
 
 router.post('/quiz/submit', assessCtrl.submitQuiz);
 router.get('/report/:userId', assessCtrl.getWeeklyReport);
-
+router.get('/results/:lessonId', async (req, res) => {
+    try {
+        const results = await QuizResult.find({ lessonId: req.params.lessonId })
+            .populate('userId', 'fullName')
+            .sort({ createdAt: -1 });
+        res.json(results);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 module.exports = router;
