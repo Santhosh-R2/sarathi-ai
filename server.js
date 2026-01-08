@@ -5,7 +5,7 @@ const connectDB = require("./config/db");
 
 const userRoutes = require("./routes/userRoutes");
 const tutorialRoutes = require("./routes/tutorialRoutes");
-
+const assessmentRoutes = require('./routes/assessmentRoutes');
 dotenv.config();
 connectDB();
 
@@ -17,6 +17,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 app.use("/api/users", userRoutes);
 app.use("/api/tutorials", tutorialRoutes);
+app.use('/api/assessment', assessmentRoutes);
 
 app.get("/", (req, res) => {
     res.send("API is Digital Sarathi AI-Powered Digital Literacy Assistant...");
