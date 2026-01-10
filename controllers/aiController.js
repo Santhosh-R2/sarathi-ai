@@ -4,7 +4,8 @@ const translate = require('translate-google-api');
 const Chat = require("../models/Chat");
 const User = require("../models/User");
 const Tutorial = require("../models/Tutorial");
-const pythonService = require('../services/pythonService');
+
+const nlpService = require('../services/nlpService');
 
 const freeTranslate = async (text, to) => {
     try {
@@ -140,7 +141,7 @@ exports.processVoiceChat = async (req, res) => {
         const dbTutorials = await Tutorial.find({}, "title");
         // Use Python NLP for unified Fuzzy + Semantic matching
         const allTopicOptions = [...BASIC_FAQS.map(f => f.q), ...dbTutorials.map(t => t.title)];
-        let matchedTopic = await pythonService.getMatch(cleanEngText, transcription, allTopicOptions);
+        let matchedTopic = await nlpService.getMatch(cleanEngText, transcription, allTopicOptions);
 
         let responseHeader = "";
         let responseSteps = [];
