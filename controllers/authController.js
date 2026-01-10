@@ -15,6 +15,7 @@ const adminLogin = async (req, res) => {
   } else {
     return res.status(401).json({ message: "Invalid Admin Credentials" });
   }
+  
 };
 
 const loginUser = async (req, res) => {

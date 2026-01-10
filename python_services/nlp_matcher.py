@@ -72,39 +72,46 @@ def call_groq_api(user_query, native_query, available_topics, api_key):
         return "NONE"
 
 def main():
-    # Read input from stdin
-    try:
-        input_data = sys.stdin.read()
-        if not input_data:
-            print(json.dumps({"match": "NONE", "source": "error_no_input"}))
-            return
+    # Persistent loop: read line-by-line from stdin
+    for line in sys.stdin:
+        try:
+            line = line.strip()
+            if not line:
+                continue
+                
+            request = json.loads(line)
+            
+            user_query = request.get("userQuery", "")
+            native_query = request.get("nativeQuery", "")
+            options = request.get("options", [])
+            api_key = request.get("apiKey", "")
 
-        request = json.loads(input_data)
-    except json.JSONDecodeError:
-        print(json.dumps({"match": "NONE", "source": "error_json"}))
-        return
+            # 1. Try Fuzzy Match
+            best_match, score = fuzzy_match(user_query, options)
+            
+            if best_match and score > 0.6:
+                print(json.dumps({"match": best_match, "source": "fuzzy", "score": score}))
+                sys.stdout.flush()
+                continue
 
-    user_query = request.get("userQuery", "")
-    native_query = request.get("nativeQuery", "")
-    options = request.get("options", [])
-    api_key = request.get("apiKey", "")
+            # 2. Try Semantic Match (Groq)
+            if api_key:
+                ai_match = call_groq_api(user_query, native_query, options, api_key)
+                if ai_match in options:
+                    print(json.dumps({"match": ai_match, "source": "ai"}))
+                    sys.stdout.flush()
+                    continue
+            
+            print(json.dumps({"match": "NONE", "source": "fallback"}))
+            sys.stdout.flush()
 
-    # 1. Try Fuzzy Match
-    best_match, score = fuzzy_match(user_query, options)
-    
-    if best_match and score > 0.6:
-        print(json.dumps({"match": best_match, "source": "fuzzy", "score": score}))
-        return
-
-    # 2. Try Semantic Match (Groq)
-    if api_key:
-        ai_match = call_groq_api(user_query, native_query, options, api_key)
-        # Verify the AI match is actually in the valid options or is NONE
-        if ai_match in options:
-             print(json.dumps({"match": ai_match, "source": "ai"}))
-             return
-    
-    print(json.dumps({"match": "NONE", "source": "fallback"}))
+        except json.JSONDecodeError:
+            print(json.dumps({"match": "NONE", "source": "error_json"}))
+            sys.stdout.flush()
+        except Exception as e:
+            sys.stderr.write(f"Unexpected Error: {str(e)}\n")
+            print(json.dumps({"match": "NONE", "source": "error_unexpected"}))
+            sys.stdout.flush()
 
 if __name__ == "__main__":
     main()

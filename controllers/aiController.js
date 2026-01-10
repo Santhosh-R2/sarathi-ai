@@ -138,7 +138,8 @@ exports.processVoiceChat = async (req, res) => {
 
         const dbTutorials = await Tutorial.find({}, "title");
         // Use Python NLP for unified Fuzzy + Semantic matching
-        let matchedTopic = await getPythonMatch(cleanEngText, transcription, dbTutorials.map(t => t.title));
+        const allTopicOptions = [...BASIC_FAQS.map(f => f.q), ...dbTutorials.map(t => t.title)];
+        let matchedTopic = await pythonService.getMatch(cleanEngText, transcription, allTopicOptions);
 
         let responseHeader = "";
         let responseSteps = [];
