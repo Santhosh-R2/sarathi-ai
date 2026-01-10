@@ -64,7 +64,7 @@ const getPythonMatch = (userQuery, nativeQuery, availableTitles) => {
         const allOptions = [...BASIC_FAQS.map(f => f.q), ...availableTitles];
         const scriptPath = path.join(__dirname, '..', 'python_services', 'nlp_matcher.py');
 
-        const process = spawn('python', [scriptPath]);
+        const pythonProcess = spawn('python', [scriptPath]);
 
         const inputData = JSON.stringify({
             userQuery,
@@ -76,18 +76,18 @@ const getPythonMatch = (userQuery, nativeQuery, availableTitles) => {
         let outputData = "";
         let errorData = "";
 
-        process.stdin.write(inputData);
-        process.stdin.end();
+        pythonProcess.stdin.write(inputData);
+        pythonProcess.stdin.end();
 
-        process.stdout.on('data', (data) => {
+        pythonProcess.stdout.on('data', (data) => {
             outputData += data.toString();
         });
 
-        process.stderr.on('data', (data) => {
+        pythonProcess.stderr.on('data', (data) => {
             errorData += data.toString();
         });
 
-        process.on('close', (code) => {
+        pythonProcess.on('close', (code) => {
             if (code !== 0) {
                 console.error("Python NLP Error:", errorData);
                 resolve("NONE");
