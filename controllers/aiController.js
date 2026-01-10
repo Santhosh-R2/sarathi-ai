@@ -4,6 +4,7 @@ const translate = require('translate-google-api');
 const Chat = require("../models/Chat");
 const User = require("../models/User");
 const Tutorial = require("../models/Tutorial");
+const pythonService = require('../services/pythonService');
 
 const freeTranslate = async (text, to) => {
     try {
