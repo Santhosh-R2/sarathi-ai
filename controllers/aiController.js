@@ -10,9 +10,9 @@ const freeTranslate = async (text, to) => {
         if (!text) return "";
         const res = await translate(text, { tld: "com", to });
         return res[0];
-    } catch (e) { 
+    } catch (e) {
         console.error("Translation Error:", e.message);
-        return text; 
+        return text;
     }
 };
 
@@ -48,7 +48,7 @@ const getAdminDirectMatch = async (userInput, translatedInput) => {
         const title = tut.title.toLowerCase();
         const category = tut.category.toLowerCase();
 
-        if (userText.includes(title) || engText.includes(title) || 
+        if (userText.includes(title) || engText.includes(title) ||
             userText.includes(category) || engText.includes(category)) {
             return tut.title;
         }
@@ -56,23 +56,53 @@ const getAdminDirectMatch = async (userInput, translatedInput) => {
     return null;
 };
 
-const getSmartMatch = async (userQuery, nativeQuery, availableTitles) => {
-    try {
-        const allOptions = [...BASIC_FAQS.map(f => f.q), ...availableTitles].join(", ");
-        const prompt = `User input (English): "${userQuery}". User input (Native): "${nativeQuery}".
-        Knowledge Base Topics: [${allOptions}]. 
-        Task: Which topic best matches the user's intent? 
-        Return ONLY the title string. If no match, return "NONE".`;
+const { spawn } = require('child_process');
+const path = require('path');
 
-        const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
-            model: "llama-3.1-8b-instant",
-            messages: [{ role: "user", content: prompt }],
-            temperature: 0.1
-        }, {
-            headers: { 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` }
+const getPythonMatch = (userQuery, nativeQuery, availableTitles) => {
+    return new Promise((resolve, reject) => {
+        const allOptions = [...BASIC_FAQS.map(f => f.q), ...availableTitles];
+        const scriptPath = path.join(__dirname, '..', 'python_services', 'nlp_matcher.py');
+
+        const process = spawn('python', [scriptPath]);
+
+        const inputData = JSON.stringify({
+            userQuery,
+            nativeQuery,
+            options: allOptions,
+            apiKey: process.env.GROQ_API_KEY
         });
-        return response.data.choices[0].message.content.trim().replace(/[".]+/g, '');
-    } catch (e) { return "NONE"; }
+
+        let outputData = "";
+        let errorData = "";
+
+        process.stdin.write(inputData);
+        process.stdin.end();
+
+        process.stdout.on('data', (data) => {
+            outputData += data.toString();
+        });
+
+        process.stderr.on('data', (data) => {
+            errorData += data.toString();
+        });
+
+        process.on('close', (code) => {
+            if (code !== 0) {
+                console.error("Python NLP Error:", errorData);
+                resolve("NONE");
+                return;
+            }
+            try {
+                const result = JSON.parse(outputData);
+                console.log("NLP Result:", result);
+                resolve(result.match);
+            } catch (e) {
+                console.error("NLP JSON Parse Error:", e.message, outputData);
+                resolve("NONE");
+            }
+        });
+    });
 };
 
 exports.processVoiceChat = async (req, res) => {
@@ -81,10 +111,10 @@ exports.processVoiceChat = async (req, res) => {
         const user = await User.findById(userId);
         if (!user) return res.status(404).json({ message: "User not found" });
 
-        const langISO = user.language === "Malayalam" ? "ml" : 
-                        user.language === "Tamil" ? "ta" : 
-                        user.language === "Hindi" ? "hi" : "en";
-        
+        const langISO = user.language === "Malayalam" ? "ml" :
+            user.language === "Tamil" ? "ta" :
+                user.language === "Hindi" ? "hi" : "en";
+
         let transcription = textInput || "";
 
         if (audioBase64) {
@@ -106,23 +136,12 @@ exports.processVoiceChat = async (req, res) => {
         const engText = await freeTranslate(transcription, 'en');
         const cleanEngText = engText.toLowerCase().replace("google play", "google pay");
 
-        let matchedTopic = await getAdminDirectMatch(transcription, cleanEngText);
-        
-        if (!matchedTopic) {
-            const input = cleanEngText.toLowerCase();
-            if (input.match(/whatsapp|व्हाट्सएप|വാട്സാപ്പ്|வாட்ஸ்அப்|chat/)) matchedTopic = "how to use whatsapp";
-            if (input.match(/digilocker|डिजी लॉकर|ഡിജിലോക്കർ|aadhaar|आधार|ആധാർ/)) matchedTopic = "what is digilocker";
-            if (input.match(/gpay|pay|money|पैसे|പണം|qr|scan/)) matchedTopic = "pay money to shop";
-        }
+        const dbTutorials = await Tutorial.find({}, "title");
+        // Use Python NLP for unified Fuzzy + Semantic matching
+        let matchedTopic = await getPythonMatch(cleanEngText, transcription, dbTutorials.map(t => t.title));
 
-        if (!matchedTopic) {
-            const dbTutorials = await Tutorial.find({}, "title");
-            const allDbTitles = dbTutorials.map(t => t.title);
-            matchedTopic = await getSmartMatch(cleanEngText, transcription, allDbTitles);
-        }
-        
-        let responseHeader = ""; 
-        let responseSteps = [];  
+        let responseHeader = "";
+        let responseSteps = [];
         let isTutorial = false;
 
         const faqMatch = BASIC_FAQS.find(f => f.q === matchedTopic);
@@ -145,21 +164,21 @@ exports.processVoiceChat = async (req, res) => {
             responseSteps.map(async (step) => await freeTranslate(step, langISO))
         );
 
-        await Chat.create({ 
-            userId, 
-            originalText: transcription, 
-            translatedText: engText, 
-            aiResponse: responseHeader + " " + responseSteps.join(" "), 
-            translatedResponse: localizedAiHeader + " " + localizedSteps.join(" "), 
-            languageUsed: user.language 
+        await Chat.create({
+            userId,
+            originalText: transcription,
+            translatedText: engText,
+            aiResponse: responseHeader + " " + responseSteps.join(" "),
+            translatedResponse: localizedAiHeader + " " + localizedSteps.join(" "),
+            languageUsed: user.language
         });
 
-        res.json({ 
-            success: true, 
-            userSaid: transcription, 
-            aiSaid: localizedAiHeader, 
-            steps: localizedSteps,     
-            isTutorial 
+        res.json({
+            success: true,
+            userSaid: transcription,
+            aiSaid: localizedAiHeader,
+            steps: localizedSteps,
+            isTutorial
         });
 
     } catch (e) {
