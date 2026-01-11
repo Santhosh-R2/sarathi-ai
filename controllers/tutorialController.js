@@ -1,7 +1,18 @@
 const Tutorial = require("../models/Tutorial");
+const translate = require('translate-google-api');
 
-// @desc    Add a new tutorial
-// @route   POST /api/tutorials/add
+const freeTranslate = async (text, to) => {
+    try {
+        if (!text || to === 'en') return text;
+        const res = await translate(text, { tld: "com", to });
+        return res[0];
+    } catch (e) {
+        console.error("Translation Error:", e.message);
+        return text;
+    }
+};
+
+
 const addTutorial = async (req, res) => {
   try {
     const { title, category, description, steps, language } = req.body;
@@ -22,8 +33,33 @@ const addTutorial = async (req, res) => {
 
 const getTutorials = async (req, res) => {
     try {
-        const tutorials = await Tutorial.find({}, 'title category description steps'); 
-        res.json(tutorials);
+        // 1. Get the language from the query params (e.g., /api/tutorials?lang=ml)
+        const { lang } = req.query; 
+
+        // 2. Fetch tutorials from DB
+        const tutorials = await Tutorial.find({}, 'title category description'); 
+
+        // 3. If no language or English, return original
+        if (!lang || lang === 'en') {
+            return res.json(tutorials);
+        }
+
+        // 4. Translate the titles for suggestions
+        const translatedTutorials = await Promise.all(
+            tutorials.map(async (tut) => {
+                const nativeTitle = await freeTranslate(tut.title, lang);
+                return {
+                    _id: tut._id,
+                    category: tut.category,
+                    // We send the translated title for display
+                    title: nativeTitle, 
+                    // Optional: keep original title for logic if needed
+                    originalTitle: tut.title 
+                };
+            })
+        );
+
+        res.json(translatedTutorials);
     } catch (e) { 
         res.status(500).json({ message: e.message }); 
     }
