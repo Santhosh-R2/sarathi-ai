@@ -6,6 +6,7 @@ const User = require("../models/User");
 const Tutorial = require("../models/Tutorial");
 
 const nlpService = require('../services/nlpService');
+const pythonNlpWrapper = require('../services/pythonNlpWrapper');
 
 const freeTranslate = async (text, to) => {
     try {
@@ -58,53 +59,14 @@ const getAdminDirectMatch = async (userInput, translatedInput) => {
     return null;
 };
 
-const { spawn } = require('child_process');
-const path = require('path');
-
-const getPythonMatch = (userQuery, nativeQuery, availableTitles) => {
-    return new Promise((resolve, reject) => {
+const getPythonMatch = async (userQuery, nativeQuery, availableTitles, language) => {
+    try {
         const allOptions = [...BASIC_FAQS.map(f => f.q), ...availableTitles];
-        const scriptPath = path.join(__dirname, '..', 'python_services', 'nlp_matcher.py');
-
-        const pythonProcess = spawn('python', [scriptPath]);
-
-        const inputData = JSON.stringify({
-            userQuery,
-            nativeQuery,
-            options: allOptions,
-            apiKey: process.env.GROQ_API_KEY
-        });
-
-        let outputData = "";
-        let errorData = "";
-
-        pythonProcess.stdin.write(inputData);
-        pythonProcess.stdin.end();
-
-        pythonProcess.stdout.on('data', (data) => {
-            outputData += data.toString();
-        });
-
-        pythonProcess.stderr.on('data', (data) => {
-            errorData += data.toString();
-        });
-
-        pythonProcess.on('close', (code) => {
-            if (code !== 0) {
-                console.error("Python NLP Error:", errorData);
-                resolve("NONE");
-                return;
-            }
-            try {
-                const result = JSON.parse(outputData);
-                console.log("NLP Result:", result);
-                resolve(result.match);
-            } catch (e) {
-                console.error("NLP JSON Parse Error:", e.message, outputData);
-                resolve("NONE");
-            }
-        });
-    });
+        return await pythonNlpWrapper.getMatch(userQuery, nativeQuery, allOptions, process.env.GROQ_API_KEY, language);
+    } catch (err) {
+        console.error("Python NLP Wrapper Error:", err);
+        return { match: "NONE" };
+    }
 };
 
 exports.processVoiceChat = async (req, res) => {
@@ -141,7 +103,26 @@ exports.processVoiceChat = async (req, res) => {
         const dbTutorials = await Tutorial.find({}, "title");
         // Use Python NLP for unified Fuzzy + Semantic matching
         const allTopicOptions = [...BASIC_FAQS.map(f => f.q), ...dbTutorials.map(t => t.title)];
-        let matchedTopic = await nlpService.getMatch(cleanEngText, transcription, allTopicOptions);
+
+        // SWITCHED TO PYTHON SERVICE for better Malayalam intent handling
+        let matchedTopic = "NONE";
+        let correctedTranscription = transcription; // Default to original if no correction
+
+        try {
+            const result = await getPythonMatch(cleanEngText, transcription, allTopicOptions, user.language);
+            // Result is now an object: { match: "...", correctedNative: "..." }
+            if (result && typeof result === 'object') {
+                matchedTopic = result.match || "NONE";
+                if (result.correctedNative) {
+                    correctedTranscription = result.correctedNative;
+                }
+            } else {
+                matchedTopic = result; // Fallback for string return legacy or error
+            }
+        } catch (err) {
+            console.error("Python NLP Failed, falling back to Native Node Service", err);
+            matchedTopic = await nlpService.getMatch(cleanEngText, transcription, allTopicOptions);
+        }
 
         let responseHeader = "";
         let responseSteps = [];
@@ -169,7 +150,7 @@ exports.processVoiceChat = async (req, res) => {
 
         await Chat.create({
             userId,
-            originalText: transcription,
+            originalText: correctedTranscription, // Save corrected version to DB
             translatedText: engText,
             aiResponse: responseHeader + " " + responseSteps.join(" "),
             translatedResponse: localizedAiHeader + " " + localizedSteps.join(" "),
@@ -178,7 +159,7 @@ exports.processVoiceChat = async (req, res) => {
 
         res.json({
             success: true,
-            userSaid: transcription,
+            userSaid: correctedTranscription, // Send corrected version back to Frontend
             aiSaid: localizedAiHeader,
             steps: localizedSteps,
             isTutorial

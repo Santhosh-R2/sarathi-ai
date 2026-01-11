@@ -3,7 +3,22 @@ import json
 import difflib
 import os
 import urllib.request
+import urllib.error
 import urllib.parse
+import unicodedata
+import io
+
+# --- VERCEL ENCODING FIX ---
+# Forces the script to use UTF-8 regardless of the environment's default.
+# This is critical for handling Malayalam, Tamil, and Hindi characters.
+sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8')
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+def normalize_text(text):
+    """Normalize unicode characters"""
+    if not text:
+        return ""
+    return unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('utf-8')
 
 def fuzzy_match(query, options, threshold=0.6):
     """
@@ -26,53 +41,76 @@ def fuzzy_match(query, options, threshold=0.6):
         return matches[0], difflib.SequenceMatcher(None, query, matches[0]).ratio()
     return None, 0
 
-def call_groq_api(user_query, native_query, available_topics, api_key):
+
+def call_groq_api(user_query, native_query, available_topics, api_key, language="Native Language"):
     """
-    Calls Groq API for semantic matching when fuzzy matching fails.
+    Calls Groq API for semantic matching and spelling correction.
+    Returns (match_string, corrected_native_string).
     """
     url = "https://api.groq.com/openai/v1/chat/completions"
     topics_str = ", ".join(available_topics)
     
+    # Prompt optimized for Llama 3.1
     prompt = f"""
-    You are an intent classification engine.
-    User input (English): "{user_query}"
-    User input (Native/Original): "{native_query}"
+    You are an intelligent intent classification engine for a Help App.
     
-    Available Knowledge Base Topics:
+    Context:
+    - The user is speaking in: {language}
+    - "Native Input" is the raw transcription.
+    - "English Input" is the machine translation.
+    
+    Inputs:
+    1. English Input: "{user_query}"
+    2. Native Input: "{native_query}"
+    
+    Available Topics:
     [{topics_str}]
+
+    Glossary of Correct Spellings (Use these exactly):
+    - WhatsApp / വാട്‌സാപ്പ് / व्हाट्सएप
+    - GPay / Google Pay / ഗൂഗിൾ പേ / गूगल पे
+    - DigiLocker / ഡിജിലോക്കർ / डिजिलॉकर
+    - Aadhaar / ആധാർ / आधार
+    - UPI / യുപിഐ / यूपीआई
     
-    Task: Identify which Topic best matches the user's intent.
-    - If the user is asking about something covered in the Topics, return ONLY the exact Topic string.
-    - If there is no matching topic, return "NONE".
-    - Do not output any explanation, markdown, or punctuation. Just the topic name.
+    Task:
+    1. Identify the best matching Topic from the list. If no match, use "NONE".
+    2. Correct the spelling/grammar of the Native Input into standard colloquial {language}.
+    
+    Output Format:
+    Return ONLY a JSON object with this exact structure:
+    {{
+      "match": "Exact Topic Name or NONE",
+      "correctedNative": "The corrected native sentence string"
+    }}
     """
 
     payload = {
         "model": "llama-3.1-8b-instant",
         "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.1
+        "temperature": 0.1,
+        "response_format": {"type": "json_object"}
     }
     
     data = json.dumps(payload).encode('utf-8')
     req = urllib.request.Request(url, data=data, method="POST")
     req.add_header("Authorization", f"Bearer {api_key}")
     req.add_header("Content-Type", "application/json")
+    req.add_header("User-Agent", "SarathiNLP/1.0")
     
     try:
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req, timeout=10) as response:
             res_body = response.read()
             res_json = json.loads(res_body)
             content = res_json['choices'][0]['message']['content'].strip()
-            # Cleanup any potential quotes or periods
-            content = content.replace('"', '').replace('.', '')
-            return content
+            parsed = json.loads(content)
+            return parsed.get("match", "NONE"), parsed.get("correctedNative", native_query)
     except Exception as e:
-        # Fallback or log error to stderr if needed
-        sys.stderr.write(f"Groq API Error: {str(e)}\n")
-        return "NONE"
+        # Fallback to original input on API failure
+        return "NONE", native_query
 
 def main():
-    # Persistent loop: read line-by-line from stdin
+    # Read the JSON payload from Node.js stdin
     for line in sys.stdin:
         try:
             line = line.strip()
@@ -85,33 +123,47 @@ def main():
             native_query = request.get("nativeQuery", "")
             options = request.get("options", [])
             api_key = request.get("apiKey", "")
+            language = request.get("language", "Native Language")
 
-            # 1. Try Fuzzy Match
-            best_match, score = fuzzy_match(user_query, options)
-            
-            if best_match and score > 0.6:
-                print(json.dumps({"match": best_match, "source": "fuzzy", "score": score}))
-                sys.stdout.flush()
-                continue
-
-            # 2. Try Semantic Match (Groq)
             if api_key:
-                ai_match = call_groq_api(user_query, native_query, options, api_key)
+                ai_match, corrected_native = call_groq_api(user_query, native_query, options, api_key, language)
+                
+                # Verify match against available options
+                final_match = "NONE"
                 if ai_match in options:
-                    print(json.dumps({"match": ai_match, "source": "ai"}))
-                    sys.stdout.flush()
-                    continue
-            
-            print(json.dumps({"match": "NONE", "source": "fallback"}))
-            sys.stdout.flush()
+                    final_match = ai_match
+                else:
+                    # Double check via fuzzy for slight variations in AI response
+                    fuzzy_m, score = fuzzy_match(ai_match, options, threshold=0.8)
+                    if fuzzy_m:
+                        final_match = fuzzy_m
 
-        except json.JSONDecodeError:
-            print(json.dumps({"match": "NONE", "source": "error_json"}))
+                # ensure_ascii=False is MANDATORY for Malayalam/Hindi output
+                print(json.dumps({
+                    "match": final_match, 
+                    "source": "ai", 
+                    "correctedNative": corrected_native
+                }, ensure_ascii=False))
+                sys.stdout.flush()
+                # Break after processing for serverless efficiency
+                break
+
+            # Fallback if no API key
+            best_match, score = fuzzy_match(user_query, options)
+            final_res = best_match if (best_match and score > 0.6) else "NONE"
+            print(json.dumps({
+                "match": final_res, 
+                "source": "fuzzy_fallback", 
+                "correctedNative": native_query
+            }, ensure_ascii=False))
             sys.stdout.flush()
+            break
+
         except Exception as e:
-            sys.stderr.write(f"Unexpected Error: {str(e)}\n")
-            print(json.dumps({"match": "NONE", "source": "error_unexpected"}))
+            # Send error back as JSON so Node.js can parse it
+            print(json.dumps({"match": "NONE", "error": str(e)}, ensure_ascii=False))
             sys.stdout.flush()
+            break
 
 if __name__ == "__main__":
     main()

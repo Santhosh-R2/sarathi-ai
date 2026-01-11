@@ -1,0 +1,1 @@
+{"match": "how to use whatsapp", "source": "ai", "correctedNative": "വാട്‌സാപ്പ് എങ്ങനെ ഉപയോഗിക്കാം"}
