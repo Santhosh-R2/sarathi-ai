@@ -4,7 +4,7 @@ const translate = require('translate-google-api');
 const freeTranslate = async (text, to) => {
     try {
         if (!text || to === 'en') return text;
-        const res = await translate(text, { tld: "com", to });
+        const res = await translate(text, { tld: "co.in", to: "ml" });
         return res[0];
     } catch (e) {
         console.error("Translation Error:", e.message);

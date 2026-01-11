@@ -11,7 +11,7 @@ const pythonNlpWrapper = require('../services/pythonNlpWrapper');
 const freeTranslate = async (text, to) => {
     try {
         if (!text) return "";
-        const res = await translate(text, { tld: "com", to });
+        const res = await translate(text, { tld: "co.in", to: "ml" });
         return res[0];
     } catch (e) {
         console.error("Translation Error:", e.message);

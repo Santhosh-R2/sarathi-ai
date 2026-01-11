@@ -7,7 +7,8 @@ class PythonNlpWrapper {
             const scriptPath = path.join(process.cwd(), 'python_services', 'nlp_matcher.py');
 
             // DYNAMIC COMMAND: Use 'python' for Windows, 'python3' for Vercel/Linux
-            const pythonCommand = "python3"; // Inside Docker (Linux), it is always python3
+            const pythonCommand = process.platform === "win32" ? "python" : "python3";
+
             console.log(`Spawning ${pythonCommand} for NLP...`);
             const pythonProcess = spawn(pythonCommand, [scriptPath]);
 
