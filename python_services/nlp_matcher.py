@@ -104,8 +104,11 @@ def call_groq_api(user_query, native_query, available_topics, api_key, language=
             res_json = json.loads(res_body)
             content = res_json['choices'][0]['message']['content'].strip()
             parsed = json.loads(content)
-            return parsed.get("match", "NONE"), parsed.get("correctedNative", native_query)
+            ai_match = parsed.get("match", "NONE")
+            sys.stderr.write(f"AI matched: {ai_match}\n")
+            return ai_match, parsed.get("correctedNative", native_query)
     except Exception as e:
+        sys.stderr.write(f"Groq API Error: {str(e)}\n")
         # Fallback to original input on API failure
         return "NONE", native_query
 

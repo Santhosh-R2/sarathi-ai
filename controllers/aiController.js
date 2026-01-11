@@ -110,17 +110,21 @@ exports.processVoiceChat = async (req, res) => {
 
         try {
             const result = await getPythonMatch(cleanEngText, transcription, allTopicOptions, user.language);
-            // Result is now an object: { match: "...", correctedNative: "..." }
             if (result && typeof result === 'object') {
                 matchedTopic = result.match || "NONE";
                 if (result.correctedNative) {
                     correctedTranscription = result.correctedNative;
                 }
             } else {
-                matchedTopic = result; // Fallback for string return legacy or error
+                matchedTopic = result; // Fallback for string return legacy
             }
         } catch (err) {
-            console.error("Python NLP Failed, falling back to Native Node Service", err);
+            console.error("Python NLP Service Failed:", err.message);
+        }
+
+        // If Python failed or returned NONE, try the local Node service (which has its own Groq fallback)
+        if (matchedTopic === "NONE") {
+            console.log("Python NLP returned NONE, trying Node NLP Service fallback...");
             matchedTopic = await nlpService.getMatch(cleanEngText, transcription, allTopicOptions);
         }
 

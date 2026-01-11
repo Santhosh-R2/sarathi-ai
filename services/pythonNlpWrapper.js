@@ -5,10 +5,10 @@ class PythonNlpWrapper {
     async getMatch(userQuery, nativeQuery, options, apiKey, language) {
         return new Promise((resolve, reject) => {
             const scriptPath = path.join(process.cwd(), 'python_services', 'nlp_matcher.py');
-            
+
             // DYNAMIC COMMAND: Use 'python' for Windows, 'python3' for Vercel/Linux
             const pythonCommand = process.platform === "win32" ? "python" : "python3";
-            
+
             console.log(`Spawning ${pythonCommand} for NLP...`);
             const pythonProcess = spawn(pythonCommand, [scriptPath]);
 
@@ -40,9 +40,15 @@ class PythonNlpWrapper {
                     return reject(new Error("NLP Process Failed"));
                 }
                 try {
-                    const result = JSON.parse(output.trim());
+                    const trimmedOutput = output.trim();
+                    console.log("Python NLP Raw Output:", trimmedOutput);
+                    const result = JSON.parse(trimmedOutput);
+                    if (result.error) {
+                        console.error("Python NLP Script Error:", result.error);
+                    }
                     resolve(result);
                 } catch (e) {
+                    console.error("JSON Parse Error for Python output:", e.message, "Raw:", output);
                     reject(new Error("Invalid JSON from NLP service"));
                 }
             });
