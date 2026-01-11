@@ -68,7 +68,7 @@ const getPythonMatch = async (userQuery, nativeQuery, availableTitles, language)
         return { match: "NONE" };
     }
 };
-
+const GREETINGS = ["hi", "hello", "hey", "namaste", "namaskaram", "vanakkam", "good morning", "good evening", "hi sarathi", "hello sarathi","hey sarathi"];
 exports.processVoiceChat = async (req, res) => {
     try {
         let { userId, audioBase64, textInput } = req.body;
@@ -81,6 +81,7 @@ exports.processVoiceChat = async (req, res) => {
 
         let transcription = textInput || "";
 
+        // 1. Transcription Logic (Audio to Text)
         if (audioBase64) {
             const base64Data = audioBase64.split(',').pop();
             const form = new FormData();
@@ -97,56 +98,61 @@ exports.processVoiceChat = async (req, res) => {
 
         if (!transcription) return res.status(400).json({ message: "No input received." });
 
+        // 2. Translation & Cleaning
         const engText = await freeTranslate(transcription, 'en');
-        const cleanEngText = engText.toLowerCase().replace("google play", "google pay");
-
-        const dbTutorials = await Tutorial.find({}, "title");
-        // Use Python NLP for unified Fuzzy + Semantic matching
-        const allTopicOptions = [...BASIC_FAQS.map(f => f.q), ...dbTutorials.map(t => t.title)];
-
-        // SWITCHED TO PYTHON SERVICE for better Malayalam intent handling
-        let matchedTopic = "NONE";
-        let correctedTranscription = transcription; // Default to original if no correction
-
-        try {
-            const result = await getPythonMatch(cleanEngText, transcription, allTopicOptions, user.language);
-            if (result && typeof result === 'object') {
-                matchedTopic = result.match || "NONE";
-                if (result.correctedNative) {
-                    correctedTranscription = result.correctedNative;
-                }
-            } else {
-                matchedTopic = result; // Fallback for string return legacy
-            }
-        } catch (err) {
-            console.error("Python NLP Service Failed:", err.message);
-        }
-
-        // If Python failed or returned NONE, try the local Node service (which has its own Groq fallback)
-        if (matchedTopic === "NONE") {
-            console.log("Python NLP returned NONE, trying Node NLP Service fallback...");
-            matchedTopic = await nlpService.getMatch(cleanEngText, transcription, allTopicOptions);
-        }
+        const cleanEngText = engText.toLowerCase().trim().replace(/[?.!]/g, "");
 
         let responseHeader = "";
         let responseSteps = [];
         let isTutorial = false;
+        let matchedTopic = "NONE";
+        let correctedTranscription = transcription;
 
-        const faqMatch = BASIC_FAQS.find(f => f.q === matchedTopic);
-        const dbMatch = await Tutorial.findOne({ title: matchedTopic });
+        // --- NEW: GREETING INTERCEPTOR ---
+        const isGreeting = GREETINGS.includes(cleanEngText);
 
-        if (faqMatch) {
-            responseHeader = "Here are the steps to help you:";
-            responseSteps = faqMatch.steps.map((s, i) => `Step ${i + 1}: ${s}`);
-            isTutorial = true;
-        } else if (dbMatch) {
-            responseHeader = dbMatch.description;
-            responseSteps = dbMatch.steps.map(s => `Step ${s.stepNumber}: ${s.instruction}`);
-            isTutorial = true;
+        if (isGreeting) {
+            responseHeader = `Hello ${user.fullName || 'there'}! I am Digital Sarathi, your assistant. I can help you learn things like how to use WhatsApp, Google Pay, or DigiLocker. How can I guide you today?`;
+            isTutorial = false;
         } else {
-            responseHeader = `I understood you said: "${engText}". I don't have a specific tutorial for this yet. Try asking about WhatsApp, DigiLocker, or GPay!`;
+            // 3. NLP Matching (Only runs if NOT a greeting)
+            const dbTutorials = await Tutorial.find({}, "title");
+            const allTopicOptions = [...BASIC_FAQS.map(f => f.q), ...dbTutorials.map(t => t.title)];
+
+            try {
+                const result = await getPythonMatch(cleanEngText, transcription, allTopicOptions, user.language);
+                if (result && typeof result === 'object') {
+                    matchedTopic = result.match || "NONE";
+                    if (result.correctedNative) correctedTranscription = result.correctedNative;
+                } else {
+                    matchedTopic = result;
+                }
+            } catch (err) {
+                console.error("Python NLP Service Failed:", err.message);
+            }
+
+            if (matchedTopic === "NONE") {
+                matchedTopic = await nlpService.getMatch(cleanEngText, transcription, allTopicOptions);
+            }
+
+            // 4. Response Mapping
+            const faqMatch = BASIC_FAQS.find(f => f.q === matchedTopic);
+            const dbMatch = await Tutorial.findOne({ title: matchedTopic });
+
+            if (faqMatch) {
+                responseHeader = "Here are the steps to help you:";
+                responseSteps = faqMatch.steps.map((s, i) => `Step ${i + 1}: ${s}`);
+                isTutorial = true;
+            } else if (dbMatch) {
+                responseHeader = dbMatch.description;
+                responseSteps = dbMatch.steps.map(s => `Step ${s.stepNumber}: ${s.instruction}`);
+                isTutorial = true;
+            } else {
+                responseHeader = `I understood you said: "${engText}". I don't have a specific tutorial for this yet. You can ask me about WhatsApp, GPay, or Smartphone security!`;
+            }
         }
 
+        // 5. Final Localization & Database Save
         const localizedAiHeader = await freeTranslate(responseHeader, langISO);
         const localizedSteps = await Promise.all(
             responseSteps.map(async (step) => await freeTranslate(step, langISO))
@@ -154,7 +160,7 @@ exports.processVoiceChat = async (req, res) => {
 
         await Chat.create({
             userId,
-            originalText: correctedTranscription, // Save corrected version to DB
+            originalText: correctedTranscription,
             translatedText: engText,
             aiResponse: responseHeader + " " + responseSteps.join(" "),
             translatedResponse: localizedAiHeader + " " + localizedSteps.join(" "),
@@ -163,7 +169,7 @@ exports.processVoiceChat = async (req, res) => {
 
         res.json({
             success: true,
-            userSaid: correctedTranscription, // Send corrected version back to Frontend
+            userSaid: correctedTranscription,
             aiSaid: localizedAiHeader,
             steps: localizedSteps,
             isTutorial
@@ -174,6 +180,7 @@ exports.processVoiceChat = async (req, res) => {
         res.status(500).json({ error: "Server Error" });
     }
 };
+
 
 exports.getUserChatHistory = async (req, res) => {
     try {
