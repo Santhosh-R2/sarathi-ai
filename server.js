@@ -23,12 +23,10 @@ app.get("/", (req, res) => {
     res.send("API is Digital Sarathi AI-Powered Digital Literacy Assistant...");
 });
 
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 10000;
 
-if (process.env.NODE_ENV !== "production") {
-    app.listen(PORT, () => {
-        console.log(`Server running in development on port ${PORT}`);
-    });
-}
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on port ${PORT}`);
+});
 
 module.exports = app;
