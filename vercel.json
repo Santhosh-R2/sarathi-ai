@@ -1,11 +1,14 @@
 {
   "version": 2,
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "server.js" }
+    {
+      "source": "/api/(.*)",
+      "destination": "/server.js"
+    }
   ],
   "functions": {
     "server.js": {
-      "runtime": "vercel-node@latest",
+      "maxDuration": 20,
       "includeFiles": "python_services/**"
     }
   }
