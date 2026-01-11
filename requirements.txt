@@ -1,1 +1,1 @@
-"Hey, this project needs Python installed on the server."
+# No external dependencies required
