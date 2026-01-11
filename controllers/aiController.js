@@ -1,6 +1,6 @@
 const axios = require('axios');
 const FormData = require('form-data');
-const translate = require('translate-google-api');
+const pythonTranslatorWrapper = require('../services/pythonTranslatorWrapper');
 const Chat = require("../models/Chat");
 const User = require("../models/User");
 const Tutorial = require("../models/Tutorial");
@@ -11,8 +11,7 @@ const pythonNlpWrapper = require('../services/pythonNlpWrapper');
 const freeTranslate = async (text, to) => {
     try {
         if (!text) return "";
-        const res = await translate(text, { tld: "co.in", to: "ml" });
-        return res[0];
+        return await pythonTranslatorWrapper.translate(text, to, process.env.GROQ_API_KEY);
     } catch (e) {
         console.error("Translation Error:", e.message);
         return text;
@@ -68,7 +67,7 @@ const getPythonMatch = async (userQuery, nativeQuery, availableTitles, language)
         return { match: "NONE" };
     }
 };
-const GREETINGS = ["hi", "hello", "hey", "namaste", "namaskaram", "vanakkam", "good morning", "good evening", "hi sarathi", "hello sarathi","hey sarathi"];
+const GREETINGS = ["hi", "hello", "hey", "namaste", "namaskaram", "vanakkam", "good morning", "good evening", "hi sarathi", "hello sarathi", "hey sarathi"];
 exports.processVoiceChat = async (req, res) => {
     try {
         let { userId, audioBase64, textInput } = req.body;
