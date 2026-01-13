@@ -1,33 +1,23 @@
-# 1. Use Node.js as the base
+# 1. Use Node.js base
 FROM node:18-slim
 
-# 2. Install Python 3 and Build Tools
-# We need this so Node.js can find the 'python3' command
+# 2. Install Python and Pip
 RUN apt-get update && \
     apt-get install -y python3 python3-pip && \
     apt-get clean
 
-# 3. Create app directory
+# 3. Set Working Directory
 WORKDIR /app
 
-# 4. Install Node dependencies
+# 4. Install Node Dependencies
 COPY package*.json ./
 RUN npm install --production
 
-# 5. Install Python dependencies (if any)
+# 5. COPY and INSTALL Python Dependencies (CRITICAL FIX)
 COPY requirements.txt ./
-RUN pip3 install --no-cache-dir -r requirements.txt || true
+RUN pip3 install --no-cache-dir -r requirements.txt
 
-# 6. Copy the rest of the application code
+# 6. Copy the rest of the code
 COPY . .
 
-# 7. Set environment variables
-ENV NODE_ENV=production
-# Render/Railway will provide the PORT automatically
-ENV PORT=10000
-
-# 8. Expose the port
-EXPOSE 10000
-
-# 9. Start the server
-CMD ["node", "server.js"]
+# 7. Set
