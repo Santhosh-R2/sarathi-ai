@@ -7,10 +7,11 @@ import urllib.error
 import urllib.parse
 import unicodedata
 import io
+import time
+import random
 
-# --- VERCEL ENCODING FIX ---
+# --- ENCODING FIX ---
 # Forces the script to use UTF-8 regardless of the environment's default.
-# This is critical for handling Malayalam, Tamil, and Hindi characters.
 sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8')
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
@@ -31,9 +32,9 @@ def fuzzy_match(query, options, threshold=0.6):
     # Normalize query
     query = query.lower().strip()
     
-    # Quick direct partial check
+    # Quick direct partial check: Is the topic name IN the user's query?
     for opt in options:
-        if query in opt.lower():
+        if opt.lower() in query:
             return opt, 1.0
 
     matches = difflib.get_close_matches(query, options, n=1, cutoff=threshold)
@@ -42,78 +43,58 @@ def fuzzy_match(query, options, threshold=0.6):
     return None, 0
 
 
-def call_groq_api(user_query, native_query, available_topics, api_key, language="Native Language"):
-    """
-    Calls Groq API for semantic matching and spelling correction.
-    Returns (match_string, corrected_native_string).
-    """
-    url = "https://api.groq.com/openai/v1/chat/completions"
-    topics_str = ", ".join(available_topics)
-    
-    # Prompt optimized for Llama 3.1
-    prompt = f"""
-    You are an intelligent intent classification engine for a Help App.
-    
-    Context:
-    - The user is speaking in: {language}
-    - "Native Input" is the raw transcription.
-    - "English Input" is the machine translation.
-    
-    Inputs:
-    1. English Input: "{user_query}"
-    2. Native Input: "{native_query}"
-    
-    Available Topics:
-    [{topics_str}]
+from deep_translator import GoogleTranslator
 
-    Glossary of Correct Spellings (Use these exactly):
-    - WhatsApp / വാട്‌സാപ്പ് / व्हाट्सएप
-    - GPay / Google Pay / ഗൂഗിൾ പേ / गूगल पे
-    - DigiLocker / ഡിജിലോക്കർ / डिजिलॉकर
-    - Aadhaar / ആധാർ / आधार
-    - UPI / യുപിഐ / यूपीआई
-    
-    Task:
-    1. Identify the best matching Topic from the list. If no match, use "NONE".
-    2. Correct the spelling/grammar of the Native Input into standard colloquial {language}.
-    
-    Output Format:
-    Return ONLY a JSON object with this exact structure:
-    {{
-      "match": "Exact Topic Name or NONE",
-      "correctedNative": "The corrected native sentence string"
-    }}
+def match_intent_locally(user_query, native_query, available_topics, language="Malayalam"):
     """
-
-    payload = {
-        "model": "llama-3.1-8b-instant",
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.1,
-        "response_format": {"type": "json_object"}
-    }
-    
-    data = json.dumps(payload).encode('utf-8')
-    req = urllib.request.Request(url, data=data, method="POST")
-    req.add_header("Authorization", f"Bearer {api_key}")
-    req.add_header("Content-Type", "application/json")
-    req.add_header("User-Agent", "SarathiNLP/1.0")
-    
+    Finds the BEST match using local fuzzy logic and Google Translate for alignment.
+    Strictly avoids Groq API to prevent 429 errors.
+    """
     try:
-        with urllib.request.urlopen(req, timeout=10) as response:
-            res_body = response.read()
-            res_json = json.loads(res_body)
-            content = res_json['choices'][0]['message']['content'].strip()
-            parsed = json.loads(content)
-            ai_match = parsed.get("match", "NONE")
-            sys.stderr.write(f"AI matched: {ai_match}\n")
-            return ai_match, parsed.get("correctedNative", native_query)
+        u_query = (user_query or "").lower().strip()
+        n_query = (native_query or "").lower().strip()
+        
+        # 1. Direct Keyword Check (No translation needed for exact tech names)
+        # Check both original English and the Native text for exact model names
+        for t in available_topics:
+            t_low = t.lower()
+            if t_low in u_query or t_low in n_query:
+                return t, n_query # High confidence direct hit
+        
+        # 2. Alignment via English Translation
+        translator_to_en = GoogleTranslator(source='auto', target='en')
+        # We translate the native query to English to match against English topics
+        translated_en = translator_to_en.translate(n_query) if n_query else u_query
+        
+        # 3. Fuzzy Match against English Topic List
+        topic, score = fuzzy_match(translated_en, available_topics, threshold=0.7)
+        
+        # 4. Keyword Boost
+        # If specific keywords are present in the translated text, favor those
+        for t in available_topics:
+            if t.lower() in translated_en.lower() or t.lower() in u_query:
+                topic = t
+                score = 1.0
+                break
+        
+        # 5. Native Correction
+        # Minimalist correction via translation (ML/TA)
+        target_iso = "ml" if language == "Malayalam" else "ta"
+        translator_to_native = GoogleTranslator(source='auto', target=target_iso)
+        corrected_native = translator_to_native.translate(n_query) if n_query else n_query
+        
+        if score > 0.6:
+            return topic, corrected_native
+        return "NONE", corrected_native
+
     except Exception as e:
-        sys.stderr.write(f"Groq API Error: {str(e)}\n")
-        # Fallback to original input on API failure
-        return "NONE", native_query
+        sys.stderr.write(f"Local Matcher Error: {str(e)}\n")
+        # Fallback to pure fuzzy without translation if library fails
+        topic, _ = fuzzy_match(u_query, available_topics, threshold=0.6)
+        return topic or "NONE", native_query
 
 def main():
-    # Read the JSON payload from Node.js stdin
+    # Persistent loop: read line-by-line from stdin
     for line in sys.stdin:
         try:
             line = line.strip()
@@ -126,30 +107,17 @@ def main():
             native_query = request.get("nativeQuery", "")
             options = request.get("options", [])
             api_key = request.get("apiKey", "")
-            language = request.get("language", "Native Language")
+            language = request.get("language", "Malayalam")
 
-            if api_key:
-                ai_match, corrected_native = call_groq_api(user_query, native_query, options, api_key, language)
-                
-                # Verify match against available options
-                final_match = "NONE"
-                if ai_match in options:
-                    final_match = ai_match
-                else:
-                    # Double check via fuzzy for slight variations in AI response
-                    fuzzy_m, score = fuzzy_match(ai_match, options, threshold=0.8)
-                    if fuzzy_m:
-                        final_match = fuzzy_m
-
-                # ensure_ascii=False is MANDATORY for Malayalam/Hindi output
-                print(json.dumps({
-                    "match": final_match, 
-                    "source": "ai", 
-                    "correctedNative": corrected_native
-                }, ensure_ascii=False))
-                sys.stdout.flush()
-                # Break after processing for serverless efficiency
-                break
+            ai_match, corrected_native = match_intent_locally(user_query, native_query, options, language)
+            
+            print(json.dumps({
+                "match": ai_match, 
+                "source": "local_model", 
+                "correctedNative": corrected_native
+            }, ensure_ascii=False))
+            sys.stdout.flush()
+            continue
 
             # Fallback if no API key
             best_match, score = fuzzy_match(user_query, options)
@@ -160,13 +128,10 @@ def main():
                 "correctedNative": native_query
             }, ensure_ascii=False))
             sys.stdout.flush()
-            break
 
         except Exception as e:
-            # Send error back as JSON so Node.js can parse it
             print(json.dumps({"match": "NONE", "error": str(e)}, ensure_ascii=False))
             sys.stdout.flush()
-            break
 
 if __name__ == "__main__":
     main()

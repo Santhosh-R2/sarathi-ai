@@ -51,8 +51,8 @@ const getTutorials = async (req, res) => {
         return {
           _id: tut._id,
           category: tut.category,
-          // We send the translated title for display
-          title: nativeTitle,
+          // We send the translated title for display, safety: first line only
+          title: nativeTitle.split('\n')[0].trim(),
           // Optional: keep original title for logic if needed
           originalTitle: tut.title
         };
