@@ -13,15 +13,7 @@ router.post('/admin/add-quiz', async (req, res) => {
     }
 });
 
-router.get('/quiz/:lessonId', async (req, res) => {
-    try {
-        const quiz = await Quiz.findOne({ lessonId: req.params.lessonId });
-        if (!quiz) return res.status(404).json({ message: "No quiz found for this lesson" });
-        res.json(quiz);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
+router.get('/quiz/:lessonId', assessCtrl.getQuiz);
 
 router.post('/quiz/submit', assessCtrl.submitQuiz);
 router.get('/report/:userId', assessCtrl.getWeeklyReport);
