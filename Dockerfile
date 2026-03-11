@@ -21,4 +21,9 @@ RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 # 6. Copy the rest of the code
 COPY . .
 
-# 7. Set
+# 7. Set Port and Start
+ENV PORT=10000
+EXPOSE 10000
+
+CMD ["node", "server.js"]
+
