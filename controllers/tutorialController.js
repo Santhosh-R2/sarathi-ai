@@ -1,4 +1,6 @@
 const Tutorial = require("../models/Tutorial");
+const User = require("../models/User");
+const mongoose = require("mongoose");
 const pythonTranslatorWrapper = require('../services/pythonTranslatorWrapper');
 
 const freeTranslate = async (text, to) => {
@@ -33,27 +35,32 @@ const addTutorial = async (req, res) => {
 
 const getTutorials = async (req, res) => {
   try {
-    // 1. Get the language from the query params (e.g., /api/tutorials?lang=ml)
-    const { lang } = req.query;
+    let { lang, userId } = req.query;
 
-    // 2. Fetch tutorials from DB
+    if (!lang && userId && mongoose.Types.ObjectId.isValid(userId)) {
+        const user = await User.findById(userId);
+        if (user && user.language) {
+            lang = user.language === "Malayalam" ? "ml" :
+                   user.language === "Tamil" ? "ta" :
+                   user.language === "Hindi" ? "hi" : "en";
+        }
+    }
+
     const tutorials = await Tutorial.find({}, 'title category description');
 
-    // 3. If no language or English, return original
     if (!lang || lang === 'en') {
       return res.json(tutorials);
     }
 
-    // 4. Translate the titles for suggestions
     const translatedTutorials = await Promise.all(
       tutorials.map(async (tut) => {
         const nativeTitle = await freeTranslate(tut.title, lang);
+        const nativeDesc = await freeTranslate(tut.description, lang);
         return {
           _id: tut._id,
           category: tut.category,
-          // We send the translated title for display, safety: first line only
           title: nativeTitle.split('\n')[0].trim(),
-          // Optional: keep original title for logic if needed
+          description: nativeDesc,
           originalTitle: tut.title
         };
       })
@@ -69,7 +76,32 @@ const getTutorialById = async (req, res) => {
   try {
     const tutorial = await Tutorial.findById(req.params.id);
     if (!tutorial) return res.status(404).json({ message: "Tutorial not found" });
-    res.status(200).json(tutorial);
+
+    let { lang, userId } = req.query;
+    if (!lang && userId && mongoose.Types.ObjectId.isValid(userId)) {
+        const user = await User.findById(userId);
+        if (user && user.language) {
+            lang = user.language === "Malayalam" ? "ml" :
+                   user.language === "Tamil" ? "ta" :
+                   user.language === "Hindi" ? "hi" : "en";
+        }
+    }
+
+    if (!lang || lang === 'en') {
+        return res.status(200).json(tutorial);
+    }
+
+    const translatedTutorial = JSON.parse(JSON.stringify(tutorial));
+    translatedTutorial.title = (await freeTranslate(tutorial.title, lang)).split('\n')[0].trim();
+    translatedTutorial.description = await freeTranslate(tutorial.description, lang);
+
+    if (translatedTutorial.steps && translatedTutorial.steps.length > 0) {
+        for (let i = 0; i < translatedTutorial.steps.length; i++) {
+            translatedTutorial.steps[i].instruction = await freeTranslate(translatedTutorial.steps[i].instruction, lang);
+        }
+    }
+
+    res.status(200).json(translatedTutorial);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
