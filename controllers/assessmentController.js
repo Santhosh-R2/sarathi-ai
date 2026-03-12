@@ -115,11 +115,18 @@ exports.submitQuiz = async (req, res) => {
 
     await result.save();
 
+    const existingProgress = await UserProgress.findOne({ 
+      userId, 
+      "completedLessons.lessonId": lessonId 
+    });
+
+    const isNewLesson = !existingProgress;
+
     await UserProgress.findOneAndUpdate(
       { userId },
       { 
         $addToSet: { completedLessons: { lessonId } },
-        $inc: { "weeklyStats.lessonsThisWeek": 1 }
+        $inc: { "weeklyStats.lessonsThisWeek": isNewLesson ? 1 : 0 }
       },
       { upsert: true }
     );
@@ -148,26 +155,46 @@ exports.getWeeklyReport = async (req, res) => {
     }
 
     const weeklyLessons = progress.completedLessons.filter(l => l.completedAt >= sevenDaysAgo);
-        const averageScore = await QuizResult.aggregate([
+    
+    // Deduplicate by lessonId
+    const uniqueLessonsMap = new Map();
+    weeklyLessons.forEach(l => {
+      const id = l.lessonId._id.toString();
+      if (!uniqueLessonsMap.has(id) || l.completedAt > uniqueLessonsMap.get(id).completedAt) {
+        uniqueLessonsMap.set(id, l);
+      }
+    });
+    const uniqueWeeklyLessons = Array.from(uniqueLessonsMap.values());
+
+    const averageScoreResult = await QuizResult.aggregate([
       { 
         $match: { 
           userId: new mongoose.Types.ObjectId(userId), 
           createdAt: { $gte: sevenDaysAgo } 
         } 
       },
+      {
+        $sort: { createdAt: -1 }
+      },
+      {
+        $group: {
+          _id: "$lessonId",
+          latestScore: { $first: "$score" }
+        }
+      },
       { 
         $group: { 
           _id: null, 
-          avg: { $avg: "$score" } 
+          avg: { $avg: "$latestScore" } 
         } 
       }
     ]);
 
     res.json({
-      lessonsCompleted: weeklyLessons.length,
-      lessonTitles: weeklyLessons.map(l => l.lessonId ? l.lessonId.title : "Deleted Lesson"),
-      averageQuizScore: averageScore.length > 0 ? averageScore[0].avg : 0,
-      status: weeklyLessons.length >= 3 ? "On Track" : "Needs Improvement"
+      lessonsCompleted: uniqueWeeklyLessons.length,
+      lessonTitles: uniqueWeeklyLessons.map(l => l.lessonId ? l.lessonId.title : "Deleted Lesson"),
+      averageQuizScore: averageScoreResult.length > 0 ? averageScoreResult[0].avg : 0,
+      status: uniqueWeeklyLessons.length >= 3 ? "On Track" : "Needs Improvement"
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
