@@ -153,4 +153,32 @@ const getSystemStats = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
-module.exports = { registerUser, getUserProfile, updateProfile ,getAllUsers, getSystemStats };
+const toggleUserStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { isActive } = req.body;
+
+        const user = await User.findByIdAndUpdate(
+            id,
+            { isActive },
+            { new: true }
+        );
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        res.status(200).json({
+            message: `User ${isActive ? 'activated' : 'deactivated'} successfully`,
+            user: {
+                _id: user._id,
+                fullName: user.fullName,
+                isActive: user.isActive
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+module.exports = { registerUser, getUserProfile, updateProfile, getAllUsers, getSystemStats, toggleUserStatus };

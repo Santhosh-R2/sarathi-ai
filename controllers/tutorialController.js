@@ -112,7 +112,7 @@ const updateTutorial = async (req, res) => {
     const tutorial = await Tutorial.findByIdAndUpdate(
       req.params.id,
       req.body,
-      { new: true, runValidators: true } // Returns updated doc and runs schema checks
+      { new: true, runValidators: true } 
     );
 
     if (!tutorial) {

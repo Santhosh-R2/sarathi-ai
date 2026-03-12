@@ -29,6 +29,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ["Beginner", "Intermediate", "Senior Citizen Mode"],
       default: "Beginner",
+    },
+    isActive: {
+      type: Boolean,
+      default: true
     }
   },
   { timestamps: true }

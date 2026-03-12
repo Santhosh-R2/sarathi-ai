@@ -5,7 +5,8 @@ const {
     getUserProfile, 
     updateProfile ,
     getAllUsers,
-    getSystemStats
+    getSystemStats,
+    toggleUserStatus
 } = require("../controllers/userController");
 const { loginUser, adminLogin } = require("../controllers/authController");
 const { processVoiceChat ,getUserChatHistory ,clearUserChatHistory }  = require("../controllers/aiController");
@@ -20,4 +21,5 @@ router.post("/voice-chat", processVoiceChat);
 router.get("/history/:userId", getUserChatHistory);
 router.delete("/history/:userId", clearUserChatHistory);
 router.get("/stats", getSystemStats);
+router.patch("/status/:id", toggleUserStatus);
 module.exports = router;

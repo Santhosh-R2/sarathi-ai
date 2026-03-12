@@ -38,6 +38,10 @@ const loginUser = async (req, res) => {
       return res.status(401).json({ message: "Account not found with this Email or Mobile" });
     }
 
+    if (user.isActive === false) {
+      return res.status(403).json({ message: "Your account has been deactivated. Please contact admin." });
+    }
+
     if (user.password === cleanPassword) {
       return res.status(200).json({
         message: "Login Successful",
