@@ -23,23 +23,64 @@ def normalize_text(text):
 
 def fuzzy_match(query, options, threshold=0.6):
     """
-    Finds the best match from options using fuzzy logic.
+    Finds the best match from options using word-level fuzzy logic.
     Returns (best_match, score).
     """
     if not query or not options:
         return None, 0
     
-    # Normalize query
     query = query.lower().strip()
     
-    # Quick direct partial check: Is the topic name IN the user's query?
+    # Quick direct partial check
     for opt in options:
         if opt.lower() in query:
             return opt, 1.0
 
+    best_match = None
+    best_score = 0
+    
+    q_words = query.split()
+    if not q_words: return None, 0
+
+    for opt in options:
+        o_words = opt.lower().split()
+        if not o_words: continue
+        
+        # How many words in option have a close match in query?
+        matched_o_words = 0
+        for ow in o_words:
+            if difflib.get_close_matches(ow, q_words, n=1, cutoff=0.75):
+                matched_o_words += 1
+                
+        # How many words in query have a close match in option?
+        matched_q_words = 0
+        for qw in q_words:
+            if difflib.get_close_matches(qw, o_words, n=1, cutoff=0.75):
+                matched_q_words += 1
+                
+        score_o = matched_o_words / len(o_words)
+        score_q = matched_q_words / len(q_words)
+        
+        score = max(score_o, score_q)
+        
+        # Penalize if the match is too generic (e.g., "to" matching "to")
+        # Ensure at least 50% match
+        if score > best_score:
+            best_score = score
+            best_match = opt
+            
+    # Traditional difflib fallback just in case
     matches = difflib.get_close_matches(query, options, n=1, cutoff=threshold)
+    difflib_score = 0
     if matches:
-        return matches[0], difflib.SequenceMatcher(None, query, matches[0]).ratio()
+        difflib_score = difflib.SequenceMatcher(None, query, matches[0]).ratio()
+        
+    if best_score >= threshold and best_score >= difflib_score:
+        return best_match, best_score
+        
+    if matches and difflib_score >= threshold:
+        return matches[0], difflib_score
+        
     return None, 0
 
 
