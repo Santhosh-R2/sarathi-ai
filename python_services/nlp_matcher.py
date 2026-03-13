@@ -21,117 +21,143 @@ def normalize_text(text):
         return ""
     return unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('utf-8')
 
-def fuzzy_match(query, options, threshold=0.6):
+def get_stop_words():
+    """Simple list of common stop words to ignore during matching."""
+    return {"how", "to", "the", "a", "is", "in", "on", "my", "for", "with", "an", "this", "that", "of", "and"}
+
+def fuzzy_match(query, options, threshold=0.45):
     """
-    Finds the best match from options using word-level fuzzy logic.
-    Returns (best_match, score).
+    Finds the best match from options using a combination of string similarity,
+    keyword overlap, and bigram matches.
     """
     if not query or not options:
         return None, 0
     
     query = query.lower().strip()
+    stop_words = get_stop_words()
     
-    # Quick direct partial check
-    for opt in options:
-        if opt.lower() in query:
-            return opt, 1.0
-
+    # Pre-process query
+    q_clean = "".join(c for c in query if c.isalnum() or c.isspace())
+    q_tokens = [w for w in q_clean.split() if w not in stop_words]
+    
     best_match = None
     best_score = 0
     
-    q_words = query.split()
-    if not q_words: return None, 0
+    # Create query bigrams for phrase matching
+    q_bigrams = set()
+    if len(q_tokens) > 1:
+        for i in range(len(q_tokens)-1):
+            q_bigrams.add(f"{q_tokens[i]} {q_tokens[i+1]}")
 
     for opt in options:
-        o_words = opt.lower().split()
-        if not o_words: continue
+        opt_low = opt.lower().strip()
         
-        # How many words in option have a close match in query?
-        matched_o_words = 0
-        for ow in o_words:
-            if difflib.get_close_matches(ow, q_words, n=1, cutoff=0.75):
-                matched_o_words += 1
-                
-        # How many words in query have a close match in option?
-        matched_q_words = 0
-        for qw in q_words:
-            if difflib.get_close_matches(qw, o_words, n=1, cutoff=0.75):
-                matched_q_words += 1
-                
-        score_o = matched_o_words / len(o_words)
-        score_q = matched_q_words / len(q_words)
+        # 1. Exact or Substring (High priority)
+        if opt_low == query: return opt, 1.0
+        if opt_low in query or query in opt_low:
+            # Score based on how much of the query/option is matched
+            sub_score = min(len(opt_low), len(query)) / max(len(opt_low), len(query))
+            score = 0.85 + (sub_score * 0.1)
+            if score > best_score:
+                best_score, best_match = score, opt
         
-        score = max(score_o, score_q)
+        # 2. Token and Bigram matching
+        o_clean = "".join(c for c in opt_low if c.isalnum() or c.isspace())
+        o_tokens = [w for w in o_clean.split() if w not in stop_words]
         
-        # Penalize if the match is too generic (e.g., "to" matching "to")
-        # Ensure at least 50% match
-        if score > best_score:
-            best_score = score
+        if not o_tokens: continue
+        
+        # Fuzzy token match
+        token_matches = 0
+        for ot in o_tokens:
+            # Use higher precision for short words
+            cut = 0.85 if len(ot) < 5 else 0.75
+            if any(difflib.SequenceMatcher(None, ot, qt).ratio() >= cut for qt in q_tokens):
+                token_matches += 1
+        
+        token_score = token_matches / max(len(o_tokens), len(q_tokens))
+        
+        # Bigram match (phrase overlap)
+        o_bigrams = set()
+        if len(o_tokens) > 1:
+            for i in range(len(o_tokens)-1):
+                o_bigrams.add(f"{o_tokens[i]} {o_tokens[i+1]}")
+        
+        bigram_score = 0
+        if o_bigrams and q_bigrams:
+            matches = len(o_bigrams.intersection(q_bigrams))
+            bigram_score = matches / len(o_bigrams)
+
+        # Weighted combination
+        # If we have bigram matches, it's very likely a correct intent
+        combined_sim = (token_score * 0.6) + (bigram_score * 0.4)
+        
+        # Fallback to character-level if token score is low
+        char_sim = difflib.SequenceMatcher(None, query, opt_low).ratio()
+        
+        final_score = max(combined_sim, char_sim)
+
+        if final_score > best_score:
+            best_score = final_score
             best_match = opt
             
-    # Traditional difflib fallback just in case
-    matches = difflib.get_close_matches(query, options, n=1, cutoff=threshold)
-    difflib_score = 0
-    if matches:
-        difflib_score = difflib.SequenceMatcher(None, query, matches[0]).ratio()
-        
-    if best_score >= threshold and best_score >= difflib_score:
+    if best_score >= threshold:
         return best_match, best_score
-        
-    if matches and difflib_score >= threshold:
-        return matches[0], difflib_score
-        
     return None, 0
-
 
 from deep_translator import GoogleTranslator
 
 def match_intent_locally(user_query, native_query, available_topics, language="Malayalam"):
     """
     Finds the BEST match using local fuzzy logic and Google Translate for alignment.
-    Strictly avoids Groq API to prevent 429 errors.
     """
     try:
         u_query = (user_query or "").lower().strip()
         n_query = (native_query or "").lower().strip()
         
-        # 1. Direct Keyword Check (No translation needed for exact tech names)
-        # Check both original English and the Native text for exact model names
-        for t in available_topics:
-            t_low = t.lower()
-            if t_low in u_query or t_low in n_query:
-                return t, n_query # High confidence direct hit
-        
+        # 1. Direct Keyword Check
+        topic, score = fuzzy_match(n_query, available_topics, threshold=0.85)
+        if topic and score > 0.9:
+            return topic, n_query
+
         # 2. Alignment via English Translation
         translator_to_en = GoogleTranslator(source='auto', target='en')
-        # We translate the native query to English to match against English topics
         translated_en = translator_to_en.translate(n_query) if n_query else u_query
         
         # 3. Fuzzy Match against English Topic List
-        topic, score = fuzzy_match(translated_en, available_topics, threshold=0.7)
+        topic, score = fuzzy_match(translated_en, available_topics, threshold=0.5)
         
-        # 4. Keyword Boost
-        # If specific keywords are present in the translated text, favor those
-        for t in available_topics:
-            if t.lower() in translated_en.lower() or t.lower() in u_query:
-                topic = t
-                score = 1.0
-                break
+        # 4. Keyword Boost: If translating query to English results in specific keywords
+        # matching our available topics, we boost that score.
+        if score < 0.8:
+            topic_boost, boost_score = fuzzy_match(translated_en, available_topics, threshold=0.7)
+            if boost_score > score:
+                topic = topic_boost
+                score = boost_score
         
         # 5. Native Correction
-        # Minimalist correction via translation (ML/TA)
-        target_iso = "ml" if language == "Malayalam" else "ta"
-        translator_to_native = GoogleTranslator(source='auto', target=target_iso)
-        corrected_native = translator_to_native.translate(n_query) if n_query else n_query
+        # Minimalist correction via translation
+        iso_map = {
+            "Malayalam": "ml",
+            "Tamil": "ta",
+            "Hindi": "hi",
+            "English": "en"
+        }
+        target_iso = iso_map.get(language, "en")
         
-        if score > 0.6:
+        if target_iso != 'en':
+            translator_to_native = GoogleTranslator(source='auto', target=target_iso)
+            corrected_native = translator_to_native.translate(n_query) if n_query else n_query
+        else:
+            corrected_native = n_query
+        
+        if score > 0.5:
             return topic, corrected_native
         return "NONE", corrected_native
 
     except Exception as e:
         sys.stderr.write(f"Local Matcher Error: {str(e)}\n")
-        # Fallback to pure fuzzy without translation if library fails
-        topic, _ = fuzzy_match(u_query, available_topics, threshold=0.6)
+        topic, _ = fuzzy_match(u_query, available_topics, threshold=0.5)
         return topic or "NONE", native_query
 
 def main():

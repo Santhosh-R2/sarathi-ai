@@ -1,0 +1,95 @@
+[
+  {
+    "_id": "69b39def3b27d3529199a968",
+    "title": "New whatsapp user",
+    "category": "Social Media",
+    "description": "The user will get guidance on how to login to whatsapp as a new user",
+    "steps": [
+      {
+        "stepNumber": 1,
+        "instruction": "Step 1: Turn ON mobile data on your smartphone.\n\nStep 2: Open the WhatsApp application on your phone.\n\nStep 3: Tap “Agree and Continue.”\n\nStep 4: Enter your mobile phone number.\n\nStep 5: Tap Next.\n\nStep 6: You will receive a 6-digit verification code (OTP) by SMS.\n\nStep 7: Enter the verification code in WhatsApp.\n\nStep 8: Type your name and optionally add a profile photo.\n\nStep 9: Tap Next / Continue.\n\nStep 10: WhatsApp will open, and you can now send messages, photos, and make calls to your contacts.",
+        "_id": "69b39def3b27d3529199a969"
+      }
+    ],
+    "language": "English",
+    "createdAt": "2026-03-13T05:17:35.773Z",
+    "updatedAt": "2026-03-13T05:46:02.852Z",
+    "__v": 0
+  },
+  {
+    "_id": "69b3a0e03b27d3529199aa37",
+    "title": "How to install app from Play Store?",
+    "category": "Smartphone",
+    "description": "The user will get guidance to install apps on smartphone",
+    "steps": [
+      {
+        "stepNumber": 1,
+        "instruction": "Go to Google Play Console",
+        "_id": "69b3a0e03b27d3529199aa38"
+      },
+      {
+        "stepNumber": 2,
+        "instruction": "Sign in with your Google account.",
+        "_id": "69b3b05fbe6724497a67627c"
+      },
+      {
+        "stepNumber": 3,
+        "instruction": "Click Create Developer Account.",
+        "_id": "69b3b05fbe6724497a67627d"
+      },
+      {
+        "stepNumber": 4,
+        "instruction": "Pay the one-time registration fee ($25).",
+        "_id": "69b3b05fbe6724497a67627e"
+      }
+    ],
+    "language": "English",
+    "createdAt": "2026-03-13T05:30:08.843Z",
+    "updatedAt": "2026-03-13T06:36:15.891Z",
+    "__v": 0
+  },
+  {
+    "_id": "69b3b2b7be6724497a6762ab",
+    "title": "how to post photo in instagram",
+    "category": "Smartphone",
+    "description": "how to post photo in instagram",
+    "steps": [
+      {
+        "stepNumber": 1,
+        "instruction": "Open Instagram",
+        "_id": "69b3b2b7be6724497a6762ac"
+      },
+      {
+        "stepNumber": 2,
+        "instruction": "Click the Create (+) Button\n\nTap the ➕ (plus) button at the bottom or top of the screen.\n\nSelect Post.",
+        "_id": "69b3b2b7be6724497a6762ad"
+      }
+    ],
+    "language": "English",
+    "createdAt": "2026-03-13T06:46:15.170Z",
+    "updatedAt": "2026-03-13T06:46:15.170Z",
+    "__v": 0
+  },
+  {
+    "_id": "69b3b3bbbe6724497a6762cc",
+    "title": "how to install app in playstore",
+    "category": "Smartphone",
+    "description": "Sign in with your Google account.",
+    "steps": [
+      {
+        "stepNumber": 1,
+        "instruction": "Create a Google Play Developer Account",
+        "_id": "69b3b3bbbe6724497a6762cd"
+      },
+      {
+        "stepNumber": 2,
+        "instruction": "Sign in with your Google account.",
+        "_id": "69b3b3bbbe6724497a6762ce"
+      }
+    ],
+    "language": "English",
+    "createdAt": "2026-03-13T06:50:35.167Z",
+    "updatedAt": "2026-03-13T06:50:35.167Z",
+    "__v": 0
+  }
+]
