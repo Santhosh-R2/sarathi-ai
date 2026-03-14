@@ -123,7 +123,7 @@ const getSystemStats = async (req, res) => {
     try {
         const totalUsers = await User.countDocuments();
         const totalTutorials = await Tutorial.countDocuments();
-        const totalChats = await Chat.countDocuments(); // REAL count of AI queries
+        const totalChats = await Chat.countDocuments(); 
 
         const languageStats = await User.aggregate([
             { $group: { _id: "$language", value: { $sum: 1 } } },
@@ -181,4 +181,4 @@ const toggleUserStatus = async (req, res) => {
     }
 };
 
-module.exports = { registerUser, getUserProfile, updateProfile, getAllUsers, getSystemStats, toggleUserStatus };
+module.exports = { registerUser, getUserProfile, updateProfile, getAllUsers, getSystemStats, toggleUserStatus };

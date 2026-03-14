@@ -7,7 +7,6 @@ import io
 import time
 import random
 
-# --- ENCODING FIX ---
 sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8')
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
@@ -19,8 +18,6 @@ def translate_text(text, target_lang_iso):
     This replaces Groq to avoid 429 rate limits and provide more consistent results.
     """
     try:
-        # deep-translator handles the ISO codes directly
-        # Some mappings if needed
         lang_fixes = {
             "en": "en",
             "ml": "ml",
@@ -34,9 +31,7 @@ def translate_text(text, target_lang_iso):
         translator = GoogleTranslator(source='auto', target=target)
         result = translator.translate(text)
         
-        # --- CUSTOM REPLACEMENTS FOR MALAYALAM ---
         if target == 'ml' and result:
-            # User wants "സ്റ്റെപ്പ്" instead of generic "ഘട്ടം"
             result = result.replace("ഘട്ടം", "സ്റ്റെപ്പ്")
             result = result.replace("Step", "സ്റ്റെപ്പ്")
         
@@ -49,7 +44,6 @@ def translate_text(text, target_lang_iso):
         return text
 
 def main():
-    # Persistent loop: read line-by-line from stdin
     for line in sys.stdin:
         try:
             line = line.strip()

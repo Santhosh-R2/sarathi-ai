@@ -5,7 +5,6 @@ import speech_recognition as sr
 import base64
 import os
 
-# --- ENCODING FIX ---
 sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8')
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
@@ -15,20 +14,16 @@ def transcribe_audio(audio_base64, language_code):
     Avoids Groq completely.
     """
     try:
-        # 1. Decode base64 to temporary wav
         audio_data = base64.b64decode(audio_base64)
         tmp_filename = "tmp_audio.wav"
         with open(tmp_filename, "wb") as f:
             f.write(audio_data)
         
-        # 2. Recognize
         r = sr.Recognizer()
         with sr.AudioFile(tmp_filename) as source:
             audio = r.record(source)
-            # Use google search's free API
             text = r.recognize_google(audio, language=language_code)
             
-        # 3. Cleanup
         if os.path.exists(tmp_filename):
             os.remove(tmp_filename)
             
@@ -45,7 +40,7 @@ def main():
             
             req = json.loads(line)
             audio_b64 = req.get("audio")
-            lang = req.get("language", "ml-IN") # Default to Malayalam (India)
+            lang = req.get("language", "ml-IN") 
             
             if audio_b64:
                 text = transcribe_audio(audio_b64, lang)

@@ -23,7 +23,7 @@ pythonProcess.stderr.pipe(stderrStream);
 rl.on('line', (line) => {
     console.log("Recieved Output:", line);
     stdoutStream.write(line + "\n");
-    pythonProcess.kill(); // Close it after we get our test result
+    pythonProcess.kill(); 
 });
 
 pythonProcess.on('close', (code) => {

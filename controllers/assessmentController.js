@@ -156,7 +156,6 @@ exports.getWeeklyReport = async (req, res) => {
 
     const weeklyLessons = progress.completedLessons.filter(l => l.completedAt >= sevenDaysAgo);
     
-    // Deduplicate by lessonId
     const uniqueLessonsMap = new Map();
     weeklyLessons.forEach(l => {
       const id = l.lessonId._id.toString();

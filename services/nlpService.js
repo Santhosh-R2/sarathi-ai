@@ -14,19 +14,15 @@ class NLPService {
 
         const query = userQuery.toLowerCase().trim();
 
-        // 1. Direct Partial Match
-        // We verify if any option is contained within the query or vice-versa
         for (const opt of availableTitles) {
             if (query.includes(opt.toLowerCase())) {
-                return opt; // High confidence match
+                return opt; 
             }
         }
 
-        // 3. Fuzzy Match (String Similarity)
         const matches = stringSimilarity.findBestMatch(query, availableTitles);
         const best = matches.bestMatch;
 
-        // Threshold can be adjusted, 0.5 is reasonable
         if (best.rating > 0.5) {
             return best.target;
         }

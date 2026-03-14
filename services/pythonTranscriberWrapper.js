@@ -44,7 +44,6 @@ class PythonTranscriberWrapper {
 
     async transcribe(audioBase64, language) {
         return new Promise((resolve, reject) => {
-            // Map Malayalam to Google's code
             const langCode = language === "Malayalam" ? "ml-IN" :
                 language === "Tamil" ? "ta-IN" :
                     language === "Hindi" ? "hi-IN" : "en-US";

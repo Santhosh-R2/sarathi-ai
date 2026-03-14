@@ -6,7 +6,6 @@ const pythonTranslatorWrapper = require('../services/pythonTranslatorWrapper');
 const freeTranslate = async (text, to) => {
   try {
     if (!text || to === 'en') return text;
-    // Use Python-based translator with Groq API key
     return await pythonTranslatorWrapper.translate(text, to, process.env.GROQ_API_KEY);
   } catch (e) {
     console.error("Translation Error:", e.message);
@@ -125,8 +124,6 @@ const updateTutorial = async (req, res) => {
   }
 };
 
-// @desc    Delete a tutorial
-// @route   DELETE /api/tutorials/:id
 const deleteTutorial = async (req, res) => {
   try {
     const tutorial = await Tutorial.findByIdAndDelete(req.params.id);

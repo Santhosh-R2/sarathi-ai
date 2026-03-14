@@ -15,7 +15,6 @@ async function runVerification() {
     const lessonId1 = new mongoose.Types.ObjectId();
     const lessonId2 = new mongoose.Types.ObjectId();
 
-    // Mock Tutorials
     await Tutorial.create([
       { _id: lessonId1, title: "Lesson 1", description: "Desc 1", category: "Smartphone" },
       { _id: lessonId2, title: "Lesson 2", description: "Desc 2", category: "Smartphone" }
@@ -23,7 +22,6 @@ async function runVerification() {
 
     console.log("Created mock tutorials");
 
-    // Simulate submitQuiz logic for Lesson 1 (Attempt 1)
     const mockSubmit = async (lId, score) => {
       const existingProgress = await UserProgress.findOne({ 
         userId, 
@@ -54,7 +52,7 @@ async function runVerification() {
     await mockSubmit(lessonId1, 4);
     
     console.log("Submitting Lesson 1 Attempt 2...");
-    await mockSubmit(lessonId1, 5); // Retrying the same lesson
+    await mockSubmit(lessonId1, 5); 
 
     console.log("Submitting Lesson 2 Attempt 1...");
     await mockSubmit(lessonId2, 3);
@@ -62,7 +60,6 @@ async function runVerification() {
     const progress = await UserProgress.findOne({ userId });
     console.log("UserProgress lessonsThisWeek (expected 2):", progress.weeklyStats.lessonsThisWeek);
 
-    // Verify Weekly Report Logic (Manual Implementation from getWeeklyReport)
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
@@ -106,7 +103,6 @@ async function runVerification() {
     const finalAvg = averageScoreResult.length > 0 ? averageScoreResult[0].avg : 0;
     console.log("Average Quiz Score (expected average of 5 and 3 = 4):", finalAvg);
 
-    // Cleanup
     await UserProgress.deleteOne({ userId });
     await QuizResult.deleteMany({ userId });
     await Tutorial.deleteOne({ _id: lessonId1 });

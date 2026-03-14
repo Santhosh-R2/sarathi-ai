@@ -39,9 +39,8 @@ exports.processVoiceChat = async (req, res) => {
                 user.language === "Hindi" ? "hi" : "en";
 
         let transcription = textInput || "";
-        let rawTranscription = ""; // To store the exact words from voice
+        let rawTranscription = ""; 
 
-        // 1. Transcription Logic (Audio to Text - NO GROQ)
         if (audioBase64) {
             console.log("Using Non-Groq Python Transcriber...");
             const base64Data = audioBase64.split(',').pop();
@@ -51,9 +50,8 @@ exports.processVoiceChat = async (req, res) => {
         }
 
         if (!transcription) return res.status(400).json({ message: "No input received." });
-        if (!rawTranscription) rawTranscription = transcription; // Fallback for text input
+        if (!rawTranscription) rawTranscription = transcription; 
 
-        // 2. Translation & Cleaning
         const engText = await freeTranslate(transcription, 'en');
         const cleanEngText = engText.toLowerCase().trim().replace(/[?.!]/g, "");
 
@@ -63,13 +61,11 @@ exports.processVoiceChat = async (req, res) => {
         let matchedTopic = "NONE";
         let correctedTranscription = transcription;
 
-        // --- NEW: GREETING INTERCEPTOR ---
         const isGreeting = GREETINGS.includes(cleanEngText);
         if (isGreeting) {
             responseHeader = `Hello! I am Digital Sarathi. I can help you with WhatsApp, GPay, DigiLocker, and more. How can I help you today?`;
             isTutorial = false;
         } else {
-            // 3. NLP Matching — all topics come from the database
             const dbTutorials = await Tutorial.find({}, "title");
             const allTopicOptions = dbTutorials.map(t => t.title);
 
@@ -91,7 +87,6 @@ exports.processVoiceChat = async (req, res) => {
                 matchedTopic = await nlpService.getMatch(cleanEngText, transcription, allTopicOptions);
             }
 
-            // 4. Response Mapping — only from database
             const dbMatch = await Tutorial.findOne({ title: { $regex: new RegExp(`^${matchedTopic}$`, 'i') } });
 
             if (dbMatch) {
@@ -105,7 +100,6 @@ exports.processVoiceChat = async (req, res) => {
             }
         }
 
-        // 5. Final Localization & Database Save
         const responseTextToTranslate = [responseHeader, ...responseSteps].join(" [SPLIT] ");
         const translatedBlock = await freeTranslate(responseTextToTranslate, langISO);
         const translatedParts = translatedBlock.split(" [SPLIT] ");
@@ -115,7 +109,7 @@ exports.processVoiceChat = async (req, res) => {
 
         await Chat.create({
             userId,
-            originalText: rawTranscription, // Use exact words here
+            originalText: rawTranscription, 
             translatedText: engText,
             aiResponse: responseHeader + " " + responseSteps.join(" "),
             translatedResponse: localizedAiHeader + " " + localizedSteps.join(" "),
@@ -124,7 +118,7 @@ exports.processVoiceChat = async (req, res) => {
 
         res.json({
             success: true,
-            userSaid: rawTranscription, // Show exact words in UI
+            userSaid: rawTranscription,
             aiSaid: localizedAiHeader,
             steps: localizedSteps,
             isTutorial

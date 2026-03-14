@@ -10,8 +10,6 @@ import io
 import time
 import random
 
-# --- ENCODING FIX ---
-# Forces the script to use UTF-8 regardless of the environment's default.
 sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8')
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
@@ -36,14 +34,12 @@ def fuzzy_match(query, options, threshold=0.45):
     query = query.lower().strip()
     stop_words = get_stop_words()
     
-    # Pre-process query
     q_clean = "".join(c for c in query if c.isalnum() or c.isspace())
     q_tokens = [w for w in q_clean.split() if w not in stop_words]
     
     best_match = None
     best_score = 0
     
-    # Create query bigrams for phrase matching
     q_bigrams = set()
     if len(q_tokens) > 1:
         for i in range(len(q_tokens)-1):
@@ -52,32 +48,26 @@ def fuzzy_match(query, options, threshold=0.45):
     for opt in options:
         opt_low = opt.lower().strip()
         
-        # 1. Exact or Substring (High priority)
         if opt_low == query: return opt, 1.0
         if opt_low in query or query in opt_low:
-            # Score based on how much of the query/option is matched
             sub_score = min(len(opt_low), len(query)) / max(len(opt_low), len(query))
             score = 0.85 + (sub_score * 0.1)
             if score > best_score:
                 best_score, best_match = score, opt
         
-        # 2. Token and Bigram matching
         o_clean = "".join(c for c in opt_low if c.isalnum() or c.isspace())
         o_tokens = [w for w in o_clean.split() if w not in stop_words]
         
         if not o_tokens: continue
         
-        # Fuzzy token match
         token_matches = 0
         for ot in o_tokens:
-            # Use higher precision for short words
             cut = 0.85 if len(ot) < 5 else 0.75
             if any(difflib.SequenceMatcher(None, ot, qt).ratio() >= cut for qt in q_tokens):
                 token_matches += 1
         
         token_score = token_matches / max(len(o_tokens), len(q_tokens))
         
-        # Bigram match (phrase overlap)
         o_bigrams = set()
         if len(o_tokens) > 1:
             for i in range(len(o_tokens)-1):
@@ -88,11 +78,8 @@ def fuzzy_match(query, options, threshold=0.45):
             matches = len(o_bigrams.intersection(q_bigrams))
             bigram_score = matches / len(o_bigrams)
 
-        # Weighted combination
-        # If we have bigram matches, it's very likely a correct intent
         combined_sim = (token_score * 0.6) + (bigram_score * 0.4)
         
-        # Fallback to character-level if token score is low
         char_sim = difflib.SequenceMatcher(None, query, opt_low).ratio()
         
         final_score = max(combined_sim, char_sim)
@@ -115,28 +102,21 @@ def match_intent_locally(user_query, native_query, available_topics, language="M
         u_query = (user_query or "").lower().strip()
         n_query = (native_query or "").lower().strip()
         
-        # 1. Direct Keyword Check
         topic, score = fuzzy_match(n_query, available_topics, threshold=0.85)
         if topic and score > 0.9:
             return topic, n_query
 
-        # 2. Alignment via English Translation
         translator_to_en = GoogleTranslator(source='auto', target='en')
         translated_en = translator_to_en.translate(n_query) if n_query else u_query
         
-        # 3. Fuzzy Match against English Topic List
         topic, score = fuzzy_match(translated_en, available_topics, threshold=0.5)
         
-        # 4. Keyword Boost: If translating query to English results in specific keywords
-        # matching our available topics, we boost that score.
         if score < 0.8:
             topic_boost, boost_score = fuzzy_match(translated_en, available_topics, threshold=0.7)
             if boost_score > score:
                 topic = topic_boost
                 score = boost_score
         
-        # 5. Native Correction
-        # Minimalist correction via translation
         iso_map = {
             "Malayalam": "ml",
             "Tamil": "ta",
@@ -161,7 +141,6 @@ def match_intent_locally(user_query, native_query, available_topics, language="M
         return topic or "NONE", native_query
 
 def main():
-    # Persistent loop: read line-by-line from stdin
     for line in sys.stdin:
         try:
             line = line.strip()
@@ -186,7 +165,6 @@ def main():
             sys.stdout.flush()
             continue
 
-            # Fallback if no API key
             best_match, score = fuzzy_match(user_query, options)
             final_res = best_match if (best_match and score > 0.6) else "NONE"
             print(json.dumps({

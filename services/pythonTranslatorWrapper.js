@@ -7,10 +7,10 @@ class PythonTranslatorWrapper {
         this.pythonProcess = null;
         this.rl = null;
         this.pendingRequests = [];
-        this.cache = new Map(); // Simple in-memory cache
+        this.cache = new Map(); 
         this.MAX_CACHE_SIZE = 200;
         this.isCoolingDown = false;
-        this.COOL_DOWN_MS = 60000; // Stop calling Groq for 1 min if rate limited
+        this.COOL_DOWN_MS = 60000; 
         this.init();
     }
 
@@ -40,7 +40,6 @@ class PythonTranslatorWrapper {
                         }
                         currentRequest.resolve(currentRequest.originalText);
                     } else {
-                        // Store in cache
                         const cacheKey = `${currentRequest.text}_${currentRequest.targetLang}`;
                         this.addToCache(cacheKey, result.translated);
                         currentRequest.resolve(result.translated);
@@ -59,7 +58,6 @@ class PythonTranslatorWrapper {
             const stderrStr = data.toString();
             console.error(`Python Translator Stderr: ${stderrStr}`);
             if (stderrStr.includes("429")) {
-                // Internal retry failed, trigger cool down early
                 this.triggerCoolDown();
             }
         });
@@ -92,15 +90,13 @@ class PythonTranslatorWrapper {
     async translate(text, targetLang, apiKey) {
         if (!text) return "";
 
-        // Check cache first
         const cacheKey = `${text}_${targetLang}`;
         if (this.cache.has(cacheKey)) {
             return this.cache.get(cacheKey);
         }
 
-        // Check cool down
         if (this.isCoolingDown) {
-            return text; // Fallback to original text immediately
+            return text; 
         }
 
         return new Promise((resolve, reject) => {

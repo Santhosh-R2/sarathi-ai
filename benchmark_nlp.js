@@ -6,7 +6,6 @@ require('dotenv').config();
 
 const Tutorial = require('./models/Tutorial');
 
-// Mock FAQ data from aiController.js
 const BASIC_FAQS = [
     { q: "pay money to shop" }, { q: "send money to friend" }, { q: "check bank balance" },
     { q: "mobile recharge" }, { q: "electricity bill payment" }, { q: "gas cylinder booking" },
@@ -31,11 +30,8 @@ async function runBenchmark() {
         const rl = readline.createInterface({ input: pythonProcess.stdout, terminal: false });
 
         const testCases = [];
-        // 1. Test each DB title exactly
         dbTitles.forEach(t => testCases.push({ q: t, expected: t, type: "Exact DB" }));
-        // 2. Test each DB title with "How to" and lowercase
         dbTitles.forEach(t => testCases.push({ q: "How to " + t.toLowerCase(), expected: t, type: "Phrasing DB" }));
-        // 3. Test some FAQs
         faqTitles.slice(0, 5).forEach(t => testCases.push({ q: t, expected: t, type: "Exact FAQ" }));
 
         console.log(`Running benchmark on ${testCases.length} test cases...`);
